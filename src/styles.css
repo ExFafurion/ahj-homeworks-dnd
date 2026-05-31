@@ -1,0 +1,155 @@
+* {
+  box-sizing: border-box;
+  user-select: none; /* чтобы текст не выделялся при перетаскивании */
+}
+
+body {
+  background: #0079bf;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 20px;
+}
+
+.board {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.column {
+  background: #ebecf0;
+  border-radius: 10px;
+  width: 280px;
+  min-width: 280px;
+  padding: 12px 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.column-header {
+  font-weight: bold;
+  font-size: 1.1rem;
+  padding: 0 8px 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #ccc;
+}
+
+.cards-list {
+  min-height: 10px;
+  margin-bottom: 8px;
+}
+
+.card {
+  background: white;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  cursor: grab;
+  position: relative;
+  transition: background 0.1s;
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card:hover .delete-card {
+  display: block;
+}
+
+.delete-card {
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background: #ccc;
+  color: #333;
+  text-align: center;
+  line-height: 18px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 14px;
+}
+.delete-card:hover {
+  background: #b00;
+  color: white;
+}
+
+.add-card-btn {
+  background: #ffffff80;
+  border: none;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 4px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: #172b4d;
+  font-weight: normal;
+}
+.add-card-btn:hover {
+  background: #ffffffcc;
+  text-decoration: underline;
+}
+
+.card-input-container {
+  margin-top: 8px;
+  background: white;
+  border-radius: 6px;
+  padding: 6px;
+}
+.card-input {
+  width: 100%;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 0.9rem;
+}
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.card-actions button {
+  background: #0079bf;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.card-actions button.cancel {
+  background: #ccc;
+  color: #333;
+}
+
+/* Плейсхолдер (место под вставку) */
+.placeholder {
+  background: #c0d6e8;
+  border: 2px dashed #0079bf;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  height: 68px; /* динамически под размер карточки */
+  box-sizing: border-box;
+}
+
+/* Клон перетаскиваемой карточки */
+.drag-clone {
+  position: fixed;
+  z-index: 9999;
+  background: white;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+  width: 260px; /* чтобы не скакал */
+  cursor: grabbing;
+  transform: rotate(2deg);
+  pointer-events: none;
+  opacity: 0.9;
+  list-style: none;
+}
