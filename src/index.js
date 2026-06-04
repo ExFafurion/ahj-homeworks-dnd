@@ -1,6 +1,5 @@
 import './styles.css';
 
-// -------------------- Генератор уникальных ID --------------------
 function generateCardId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
