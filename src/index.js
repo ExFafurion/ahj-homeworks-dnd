@@ -1,52 +1,89 @@
 import './styles.css';
 
-// -------------------- Данные по умолчанию --------------------
+// -------------------- Генератор уникальных ID --------------------
+function generateCardId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
 const DEFAULT_COLUMNS = [
   {
     id: 'todo',
     title: 'TODO',
     cards: [
-      'Welcome to Trello!',
-      'This is a card.',
-      'Click on a card to see what\'s behind it.',
-      'You can attach pictures and files...'
+      { id: generateCardId(), text: 'Welcome to Trello!' },
+      { id: generateCardId(), text: 'This is a card.' },
+      { id: generateCardId(), text: 'Click on a card to see what\'s behind it.' },
+      { id: generateCardId(), text: 'You can attach pictures and files...' }
     ]
   },
   {
     id: 'in-progress',
     title: 'IN PROGRESS',
     cards: [
-      'Drag people onto a card to indicate that they\'re responsible for it.',
-      'Use color-coded labels for organization',
-      'Make as many lists as you need!',
-      'Finished with a card? Archive it.',
-      'Try dragging cards anywhere.'
+      { id: generateCardId(), text: 'Drag people onto a card to indicate that they\'re responsible for it.' },
+      { id: generateCardId(), text: 'Use color-coded labels for organization' },
+      { id: generateCardId(), text: 'Make as many lists as you need!' },
+      { id: generateCardId(), text: 'Finished with a card? Archive it.' },
+      { id: generateCardId(), text: 'Try dragging cards anywhere.' }
     ]
   },
   {
     id: 'done',
     title: 'DONE',
     cards: [
-      'To learn more tricks, check out the guide.',
-      'Use as many boards as you want. We\'ll make more!',
-      'Want to use keyboard shortcuts? We have them!',
-      'Want updates on new features?'
+      { id: generateCardId(), text: 'To learn more tricks, check out the guide.' },
+      { id: generateCardId(), text: 'Use as many boards as you want. We\'ll make more!' },
+      { id: generateCardId(), text: 'Want to use keyboard shortcuts? We have them!' },
+      { id: generateCardId(), text: 'Want updates on new features?' }
     ]
   }
 ];
 
-// localStorage
+function migrateOldData(saved) {
+  if (Array.isArray(saved) && saved.length > 0 && saved[0].cards && typeof saved[0].cards[0] === 'string') {
+    console.log('Migrating old data format...');
+    return saved.map(column => ({
+      ...column,
+      cards: column.cards.map(text => ({ id: generateCardId(), text }))
+    }));
+  }
+  return saved;
+}
+
 function loadState() {
   const saved = localStorage.getItem('trello-board');
-  return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+  if (!saved) {
+    saveState(DEFAULT_COLUMNS);
+    return JSON.parse(JSON.stringify(DEFAULT_COLUMNS));
+  }
+  const parsed = JSON.parse(saved);
+  const migrated = migrateOldData(parsed);
+  const withIds = migrated.map(column => ({
+    ...column,
+    cards: column.cards.map(card => {
+      if (typeof card === 'string') {
+        return { id: generateCardId(), text: card };
+      }
+      if (!card.id) {
+        return { ...card, id: generateCardId() };
+      }
+      return card;
+    })
+  }));
+  return withIds;
 }
-function saveState(columns) { localStorage.setItem('trello-board', JSON.stringify(columns)); }
 
-// Глобальные переменные DnD
+function saveState(columns) { 
+  localStorage.setItem('trello-board', JSON.stringify(columns)); 
+}
+
 let drag = {
   active: false,
   startColumnId: null,
-  startCardIndex: null,
+  startCardId: null,
   startCardText: null,
   clone: null,
   placeholder: null,
@@ -56,7 +93,6 @@ let drag = {
   originalCard: null
 };
 
-// Рендер доски
 function renderBoard(columns) {
   const board = document.getElementById('board');
   board.innerHTML = '';
@@ -70,9 +106,9 @@ function renderBoard(columns) {
     colDiv.appendChild(header);
     const cardsContainer = document.createElement('div');
     cardsContainer.className = 'cards-list';
-    column.cards.forEach((text, idx) => {
-      const card = createCard(text, column.id, idx);
-      cardsContainer.appendChild(card);
+    column.cards.forEach((card, idx) => {
+      const cardElem = createCard(card, column.id, idx);
+      cardsContainer.appendChild(cardElem);
     });
     colDiv.appendChild(cardsContainer);
     const addBtn = document.createElement('button');
@@ -84,12 +120,14 @@ function renderBoard(columns) {
   });
 }
 
-function createCard(text, columnId, index) {
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.textContent = text;
-  card.dataset.columnId = columnId;
-  card.dataset.cardIndex = index;
+function createCard(card, columnId, index) {
+  const cardDiv = document.createElement('div');
+  cardDiv.className = 'card';
+  cardDiv.textContent = card.text;
+  cardDiv.dataset.cardId = card.id;
+  cardDiv.dataset.columnId = columnId;
+  cardDiv.dataset.cardIndex = index;
+  
   const del = document.createElement('span');
   del.textContent = '✖';
   del.className = 'delete-card';
@@ -97,16 +135,18 @@ function createCard(text, columnId, index) {
     e.stopPropagation();
     const cols = loadState();
     const col = cols.find(c => c.id === columnId);
-    col.cards.splice(index, 1);
-    saveState(cols);
-    renderBoard(cols);
+    if (col) {
+      const cardIndex = col.cards.findIndex(c => c.id === card.id);
+      if (cardIndex !== -1) col.cards.splice(cardIndex, 1);
+      saveState(cols);
+      renderBoard(cols);
+    }
   };
-  card.appendChild(del);
-  card.addEventListener('mousedown', onMouseDown);
-  return card;
+  cardDiv.appendChild(del);
+  cardDiv.addEventListener('mousedown', onMouseDown);
+  return cardDiv;
 }
 
-// Добавление карточки
 function showAddForm(columnDiv, columnId) {
   if (columnDiv.querySelector('.card-input-container')) return;
   const container = document.createElement('div');
@@ -128,15 +168,19 @@ function showAddForm(columnDiv, columnId) {
   container.appendChild(actions);
   const addButton = columnDiv.querySelector('.add-card-btn');
   columnDiv.insertBefore(container, addButton);
+  
   const finish = () => container.remove();
   const addCard = () => {
     const newText = textarea.value.trim();
     if (newText) {
       const cols = loadState();
       const target = cols.find(c => c.id === columnId);
-      target.cards.push(newText);
-      saveState(cols);
-      renderBoard(cols);
+      if (target) {
+        const newCard = { id: generateCardId(), text: newText };
+        target.cards.push(newCard);
+        saveState(cols);
+        renderBoard(cols);
+      }
     }
     finish();
   };
@@ -146,33 +190,40 @@ function showAddForm(columnDiv, columnId) {
   textarea.focus();
 }
 
-// Drag & Drop
 function onMouseDown(e) {
   if (e.target.classList.contains('delete-card')) return;
   const card = e.target.closest('.card');
   if (!card) return;
   e.preventDefault();
+  
+  const cardId = card.dataset.cardId;
   const columnId = card.dataset.columnId;
-  const cardIndex = parseInt(card.dataset.cardIndex, 10);
   const columns = loadState();
   const column = columns.find(c => c.id === columnId);
-  if (!column || !column.cards[cardIndex]) return;
+  if (!column) return;
+  const cardObj = column.cards.find(c => c.id === cardId);
+  if (!cardObj) return;
+  
   drag.active = true;
   drag.startColumnId = columnId;
-  drag.startCardIndex = cardIndex;
-  drag.startCardText = column.cards[cardIndex];
+  drag.startCardId = cardId;
+  drag.startCardText = cardObj.text;
   drag.originalCard = card;
+  
   const rect = card.getBoundingClientRect();
   drag.offsetX = e.clientX - rect.left;
   drag.offsetY = e.clientY - rect.top;
+  
   drag.clone = card.cloneNode(true);
   drag.clone.classList.add('drag-clone');
   drag.clone.style.width = `${rect.width}px`;
   drag.clone.style.left = `${e.clientX - drag.offsetX}px`;
   drag.clone.style.top = `${e.clientY - drag.offsetY}px`;
   document.body.appendChild(drag.clone);
+  
   card.style.opacity = '0';
   card.style.visibility = 'hidden';
+  
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', onMouseUp);
 }
@@ -183,7 +234,7 @@ function onMouseMove(e) {
     drag.clone.style.left = `${e.clientX - drag.offsetX}px`;
     drag.clone.style.top = `${e.clientY - drag.offsetY}px`;
   }
-  // Находим колонку под курсором
+  
   let targetCol = null;
   const elem = document.elementsFromPoint(e.clientX, e.clientY);
   for (let el of elem) {
@@ -196,6 +247,7 @@ function onMouseMove(e) {
     drag.targetIndex = null;
     return;
   }
+  
   const targetColId = targetCol.dataset.columnId;
   const cardsContainer = targetCol.querySelector('.cards-list');
   const cards = Array.from(cardsContainer.querySelectorAll('.card:not([style*="visibility: hidden"])'));
@@ -207,6 +259,7 @@ function onMouseMove(e) {
       break;
     }
   }
+  
   if (drag.targetColumnId === targetColId && drag.targetIndex === insertIndex) return;
   removePlaceholder();
   drag.targetColumnId = targetColId;
@@ -228,22 +281,37 @@ function removePlaceholder() {
 
 function onMouseUp() {
   if (!drag.active) { cleanupDrag(); return; }
-  // Восстанавливаем оригинал
+  
   if (drag.originalCard) {
     drag.originalCard.style.opacity = '';
     drag.originalCard.style.visibility = '';
   }
-  // Перемещение
-  if (drag.targetColumnId && drag.targetIndex !== null && drag.startColumnId && drag.startCardText) {
+  
+  if (drag.targetColumnId && drag.targetIndex !== null && drag.startCardId) {
     let cols = loadState();
     const fromCol = cols.find(c => c.id === drag.startColumnId);
-    const fromIdx = fromCol.cards.indexOf(drag.startCardText);
-    if (fromIdx !== -1) fromCol.cards.splice(fromIdx, 1);
+    if (!fromCol) {
+      cleanupDrag();
+      renderBoard(loadState());
+      return;
+    }
+    const fromIndex = fromCol.cards.findIndex(c => c.id === drag.startCardId);
+    if (fromIndex === -1) {
+      cleanupDrag();
+      renderBoard(loadState());
+      return;
+    }
+    const [movedCard] = fromCol.cards.splice(fromIndex, 1);
     const toCol = cols.find(c => c.id === drag.targetColumnId);
+    if (!toCol) {
+      cleanupDrag();
+      renderBoard(loadState());
+      return;
+    }
     let finalIndex = drag.targetIndex;
-    if (drag.startColumnId === drag.targetColumnId && fromIdx < drag.targetIndex) finalIndex--;
+    if (drag.startColumnId === drag.targetColumnId && fromIndex < drag.targetIndex) finalIndex--;
     finalIndex = Math.min(finalIndex, toCol.cards.length);
-    toCol.cards.splice(finalIndex, 0, drag.startCardText);
+    toCol.cards.splice(finalIndex, 0, movedCard);
     saveState(cols);
     renderBoard(cols);
   } else {
@@ -257,7 +325,7 @@ function cleanupDrag() {
   removePlaceholder();
   drag.active = false;
   drag.startColumnId = null;
-  drag.startCardIndex = null;
+  drag.startCardId = null;
   drag.startCardText = null;
   drag.targetColumnId = null;
   drag.targetIndex = null;
@@ -267,5 +335,4 @@ function cleanupDrag() {
   document.removeEventListener('mouseup', onMouseUp);
 }
 
-// Старт
 renderBoard(loadState());
